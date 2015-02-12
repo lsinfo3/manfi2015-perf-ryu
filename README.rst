@@ -16,9 +16,9 @@ Added Processing Timer Module
 Quick Start
 ===========
 
-   % git clone git://github.com/lsinfo3/manfi2015-perf-opendaylight.git
-   % cd ryu; python ./setup.py install
-   % PYTHONPATH=. ./bin/ryu-manager ryu/app/simple_switch.py
+   'git clone git://github.com/lsinfo3/manfi2015-perf-opendaylight.git'
+   'cd ryu; python ./setup.py install'
+   'PYTHONPATH=. ./bin/ryu-manager ryu/app/simple_switch.py'
 
 
 Support
