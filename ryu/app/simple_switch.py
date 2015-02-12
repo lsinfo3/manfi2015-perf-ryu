@@ -19,6 +19,7 @@ An OpenFlow 1.0 L2 learning switch implementation.
 
 import logging
 import struct
+import time
 
 from ryu.base import app_manager
 from ryu.controller import mac_to_port
@@ -30,10 +31,11 @@ from ryu.lib.mac import haddr_to_bin
 from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 
+current_milli_time = lambda: int(round(time.time() * 1000000000))
 
 class SimpleSwitch(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_0.OFP_VERSION]
-
+	
     def __init__(self, *args, **kwargs):
         super(SimpleSwitch, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
@@ -53,39 +55,55 @@ class SimpleSwitch(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
-        msg = ev.msg
-        datapath = msg.datapath
-        ofproto = datapath.ofproto
+		start = current_milli_time()
+		
+		msg = ev.msg
+		datapath = msg.datapath
+		ofproto = datapath.ofproto
 
-        pkt = packet.Packet(msg.data)
-        eth = pkt.get_protocol(ethernet.ethernet)
+		pkt = packet.Packet(msg.data)
+		eth = pkt.get_protocol(ethernet.ethernet)
 
-        dst = eth.dst
-        src = eth.src
+		dst = eth.dst
+		src = eth.src
 
-        dpid = datapath.id
-        self.mac_to_port.setdefault(dpid, {})
+		dpid = datapath.id
+		dpidstring = str(dpid)
+		self.mac_to_port.setdefault(dpid, {})
 
-        self.logger.info("packet in %s %s %s %s", dpid, src, dst, msg.in_port)
+	#self.logger.info("packet in %s %s %s %s", dpid, src, dst, msg.in_port)
 
         # learn a mac address to avoid FLOOD next time.
-        self.mac_to_port[dpid][src] = msg.in_port
+		self.mac_to_port[dpid][src] = msg.in_port
 
-        if dst in self.mac_to_port[dpid]:
-            out_port = self.mac_to_port[dpid][dst]
-        else:
-            out_port = ofproto.OFPP_FLOOD
+		if dst in self.mac_to_port[dpid]:
+			out_port = self.mac_to_port[dpid][dst]
+		else:
+			out_port = ofproto.OFPP_FLOOD
 
-        actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+		actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
         # install a flow to avoid packet_in next time
-        if out_port != ofproto.OFPP_FLOOD:
-            self.add_flow(datapath, msg.in_port, dst, actions)
+		if out_port != ofproto.OFPP_FLOOD:
+			self.add_flow(datapath, msg.in_port, dst, actions)
 
-        out = datapath.ofproto_parser.OFPPacketOut(
-            datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
-            actions=actions)
-        datapath.send_msg(out)
+		out = datapath.ofproto_parser.OFPPacketOut(
+			datapath=datapath, buffer_id=msg.buffer_id, in_port=msg.in_port,
+			actions=actions)
+		end = current_milli_time()
+		pt = end - start
+		if out_port != ofproto.OFPP_FLOOD:
+			filename_fm = 'stats/fm_' + dpidstring + '.txt'
+			f = open(filename_fm, 'a')
+			print >>f, pt
+			f.close
+		else:
+			filename_po = 'stats/po_' + dpidstring + '.txt'
+			f = open(filename_po, 'a')
+			print >>f, pt
+			f.close
+		datapath.send_msg(out)
+		
 
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def _port_status_handler(self, ev):
